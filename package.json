@@ -18,7 +18,8 @@
     "test:rust": "cargo test --locked --manifest-path src-tauri/Cargo.toml",
     "check": "pnpm build && pnpm test && pnpm test:native && pnpm test:rust",
     "format": "prettier --write src tests vite.config.ts vitest.config.ts tsconfig.json package.json src-tauri/*.json src-tauri/capabilities/*.json",
-    "format:check": "prettier --check src tests vite.config.ts vitest.config.ts tsconfig.json package.json src-tauri/*.json src-tauri/capabilities/*.json"
+    "format:check": "prettier --check src tests vite.config.ts vitest.config.ts tsconfig.json package.json src-tauri/*.json src-tauri/capabilities/*.json",
+    "dmg": "tauri build --bundles dmg"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

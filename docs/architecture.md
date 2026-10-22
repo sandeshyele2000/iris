@@ -12,7 +12,7 @@ The product is Iris, the bundle ID is `com.iris.screenshot`, the Rust package/ex
 
 ## Capture
 
-ScreenCaptureKit access is attempted directly in the Iris process. `CGPreflightScreenCaptureAccess` is advisory in diagnostics and never vetoes a capture; it can lag a recent grant. The UI does not automatically call `CGRequestScreenCaptureAccess` after a failed source request. Explicit permission requests remain available in Diagnostics, and skip the request if preflight or a prior successful ScreenCaptureKit operation already establishes access. The OS can display its first-use prompt as part of native source enumeration. System failures are preserved; no fallback capture API is used.
+ScreenCaptureKit access is attempted directly in the Iris process. `CGPreflightScreenCaptureAccess` is advisory in diagnostics and never vetoes a capture; it can lag a recent grant. The UI does not automatically call `CGRequestScreenCaptureAccess` after a failed source request. A native first-launch request uses a persisted one-time marker and skips an existing grant. Denial does not repeat the launch prompt. Explicit permission requests remain available in Diagnostics, and skip the request if preflight or a prior successful ScreenCaptureKit operation already establishes access. The OS can display its first-use prompt as part of native source enumeration. System failures are preserved; no fallback capture API is used.
 
 `SCShareableContent` enumerates displays and available on-screen external application windows. Full-display filters exclude Iris’s own application windows. Window capture uses `SCContentFilter(desktopIndependentWindow:)`. `SCScreenshotManager.captureImage` is the only screen-image acquisition API. Pixel output sizes derive from `contentRect` and `pointPixelScale`; the returned image dimensions are used as the source of truth.
 
@@ -46,7 +46,7 @@ Only the native directory picker can change the persisted export directory. Save
 
 Global shortcuts are registered by Rust with `tauri-plugin-global-shortcut`. Invalid/duplicate/conflicting registrations return errors and settings changes attempt to restore previous bindings. Full-screen and region shortcuts run capture directly in Rust and work while the webview is minimized. Region selection uses the monitor under the pointer. Only window selection needs the main UI. A menu-bar menu exposes Capture Area, Capture Screen, Open Iris, and Quit Iris. Success emits a completed capture ID after persistence and opens the editor; Escape returns to the previous minimized state. Launch at login is opt-in via `tauri-plugin-autostart` using a per-user LaunchAgent; changes can be rejected by organizational policy. There is no privilege escalation.
 
-Pinned previews use separate always-on-top webviews. Their capability permits only loading library images and listening for refresh events; they cannot export, modify metadata, capture, invoke a shell, or access arbitrary files. The main window can invoke only the declared application commands plus event subscriptions and its close request. CSP disallows remote scripts, frames, uploads, and external image sources. The UI retains error/success states, keyboard tool access, focus-trapped dialogs, close/navigation handling for unsaved edits, and light/dark/system appearance.
+Pinned previews use separate always-on-top webviews. Their capability permits only loading library images and listening for refresh events; they cannot export, modify metadata, capture, invoke a shell, or access arbitrary files. The main window can invoke only the declared application commands plus event subscriptions and its close request. CSP disallows remote scripts, frames, uploads, and external image sources. The UI retains error/success states, keyboard tool access, focus-trapped dialogs, close/navigation handling for unsaved edits, and an indigo glass theme that follows macOS light/dark appearance. The legacy appearance field remains readable for library compatibility; the theme selector is removed.
 
 ## References
 
@@ -56,3 +56,5 @@ Pinned previews use separate always-on-top webviews. Their capability permits on
 - [Tauri capabilities](https://v2.tauri.app/security/capabilities/)
 - [Tauri global shortcuts](https://v2.tauri.app/plugin/global-shortcut/)
 - [Tauri autostart](https://v2.tauri.app/plugin/autostart/)
+
+The main window uses Tauri transparency and the native macOS sidebar vibrancy material beneath translucent web surfaces. App and source SVG icons share the eye/indigo identity. Shortcut controls capture key combinations and render keycaps; global shortcuts are unregistered during editing and restored on completion, blur, unmount, or native window focus loss.

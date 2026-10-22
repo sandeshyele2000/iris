@@ -22,6 +22,7 @@ struct State {
     store: Mutex<Store>,
     operation: tokio::sync::Mutex<()>,
     recording: AtomicBool,
+    shortcuts_paused: AtomicBool,
 }
 fn locked(state: &State) -> Result<std::sync::MutexGuard<'_, Store>> {
     state
@@ -642,6 +643,30 @@ fn shortcuts(app: &tauri::AppHandle, values: &[String; 3]) -> Result<()> {
     }
     Ok(())
 }
+fn restore_shortcuts(app: &tauri::AppHandle) -> Result<()> {
+    let state = app.state::<State>();
+    if state.shortcuts_paused.swap(false, Ordering::SeqCst) {
+        let values = locked(&state)?.db.settings.shortcuts.clone();
+        if let Err(error) = shortcuts(app, &values) {
+            state.shortcuts_paused.store(true, Ordering::SeqCst);
+            return Err(error);
+        }
+    }
+    Ok(())
+}
+#[tauri::command]
+fn set_shortcut_capture(app: tauri::AppHandle, active: bool) -> Result<()> {
+    let state = app.state::<State>();
+    if active {
+        app.global_shortcut()
+            .unregister_all()
+            .map_err(|error| failure("SHORTCUT_FAILED", error))?;
+        state.shortcuts_paused.store(true, Ordering::SeqCst);
+        Ok(())
+    } else {
+        restore_shortcuts(&app)
+    }
+}
 #[tauri::command]
 async fn update_settings(
     app: tauri::AppHandle,
@@ -712,8 +737,15 @@ fn main() {
                 store: Mutex::new(store),
                 operation: tokio::sync::Mutex::new(()),
                 recording: AtomicBool::new(false),
+                shortcuts_paused: AtomicBool::new(false),
             });
             tray(app.handle())?;
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = helper(&["startup-permission".into()]).await {
+                    let _ = handle.emit_to("main", "capture-error", error);
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -733,9 +765,19 @@ fn main() {
             copy_text,
             open_permissions,
             choose_directory,
-            update_settings
+            update_settings,
+            set_shortcut_capture
         ])
         .on_window_event(|window, event| {
+            if window.label() == "main"
+                && matches!(
+                    event,
+                    tauri::WindowEvent::Focused(false) | tauri::WindowEvent::Destroyed
+                )
+                && let Err(error) = restore_shortcuts(window.app_handle())
+            {
+                let _ = window.emit("capture-error", error);
+            }
             if window.label() == "main"
                 && window.state::<State>().recording.load(Ordering::SeqCst)
                 && let tauri::WindowEvent::CloseRequested { api, .. } = event

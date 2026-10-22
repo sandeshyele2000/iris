@@ -20,6 +20,7 @@
     "allow-open-permissions",
     "allow-choose-directory",
     "allow-update-settings",
+    "allow-set-shortcut-capture",
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "core:window:allow-close",

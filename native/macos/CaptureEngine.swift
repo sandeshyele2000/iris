@@ -32,6 +32,10 @@ struct CaptureEngine {
                     "bundleIdentifier": Bundle.main.bundleIdentifier ?? "command-line diagnostic",
                     "processId": ProcessInfo.processInfo.processIdentifier,
                     "macOS": ProcessInfo.processInfo.operatingSystemVersionString]
+        case "startup-permission" where args.count == 1:
+            return ["permissionGranted": LaunchPermission.request(
+                granted: CGPreflightScreenCaptureAccess() || accessVerified,
+                requestAccess: { CGRequestScreenCaptureAccess() })]
         case "request-permission" where args.count == 1:
             return ["permissionGranted": CGPreflightScreenCaptureAccess() || accessVerified || CGRequestScreenCaptureAccess(),
                     "message": "If permission changed, quit and reopen the responsible app before capturing."]

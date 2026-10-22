@@ -17,7 +17,13 @@
         "width": 1120,
         "height": 800,
         "minWidth": 840,
-        "minHeight": 620
+        "minHeight": 620,
+        "transparent": true,
+        "backgroundColor": "#00000000",
+        "windowEffects": {
+          "effects": ["sidebar"],
+          "state": "active"
+        }
       }
     ],
     "security": {

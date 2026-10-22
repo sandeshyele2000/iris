@@ -152,10 +152,6 @@ function Workspace() {
     };
   }, []);
   useEffect(() => {
-    const appearance = data?.settings.appearance ?? 'system';
-    document.documentElement.dataset.appearance = appearance;
-  }, [data?.settings.appearance]);
-  useEffect(() => {
     setSource('');
     setOcr(undefined);
     if (!selected) return;
@@ -414,7 +410,7 @@ function Workspace() {
           }}
         >
           <span className="brand-mark">
-            <Icon name="camera" size={23} />
+            <Icon name="eye" size={25} />
           </span>
           <span>
             Iris<span className="brand-sub">CAPTURE, CLEARLY.</span>

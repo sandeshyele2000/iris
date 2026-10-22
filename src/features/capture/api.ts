@@ -72,7 +72,8 @@ export type Command =
   | 'copy_text'
   | 'open_permissions'
   | 'choose_directory'
-  | 'update_settings';
+  | 'update_settings'
+  | 'set_shortcut_capture';
 export async function native<T>(command: Command, args?: Record<string, unknown>): Promise<T> {
   if (!isTauri())
     throw {

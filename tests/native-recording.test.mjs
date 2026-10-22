@@ -44,6 +44,7 @@ test(
           join(directory, 'swift-cache'),
           ...[
             'CaptureEngine.swift',
+            'LaunchPermission.swift',
             'ScreenRecording.swift',
             'ImageServices.swift',
             'RegionSelection.swift',

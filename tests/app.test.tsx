@@ -55,7 +55,7 @@ it('shows an accessible empty library and settings', async () => {
   render(<App />);
   await screen.findByText('Something worth keeping?');
   fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-  expect(await screen.findByText('Saving & appearance')).toBeInTheDocument();
+  expect(await screen.findByText('Saving & exports')).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Filename format'), { target: { value: 'Team-{mode}' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
   await waitFor(() =>
@@ -221,4 +221,45 @@ it('preserves the recording webview when the native close button is pressed', as
   });
   expect(preventDefault).toHaveBeenCalledOnce();
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it('captures shortcut keys, supports cancellation and clearing, and removes the theme selector', async () => {
+  render(<App />);
+  await screen.findByText('Something worth keeping?');
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  expect(screen.queryByLabelText('Appearance')).not.toBeInTheDocument();
+  const recorder = await screen.findByRole('button', { name: 'Full screen shortcut' });
+  fireEvent.click(recorder);
+  await screen.findByText('Press shortcut…');
+  fireEvent.keyDown(recorder, { code: 'KeyK', key: 'k', metaKey: true, shiftKey: true });
+  expect(within(recorder).getByText('⌘')).toBeInTheDocument();
+  expect(within(recorder).getByText('⇧')).toBeInTheDocument();
+  expect(within(recorder).getByText('K')).toBeInTheDocument();
+  fireEvent.click(recorder);
+  await screen.findByText('Press shortcut…');
+  fireEvent.keyDown(recorder, { key: 'Escape', code: 'Escape' });
+  expect(within(recorder).getByText('K')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+  await waitFor(() =>
+    expect(native).toHaveBeenCalledWith('update_settings', {
+      settings: { ...settings, shortcuts: ['Shift+Super+KeyK', '', ''] },
+    }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Clear full screen shortcut' }));
+  expect(within(recorder).getByText('Set shortcut')).toBeInTheDocument();
+});
+
+it('releases global shortcuts while editing and restores them when leaving the recorder', async () => {
+  desktop.enabled = true;
+  render(<App />);
+  await screen.findByText('Something worth keeping?');
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  const recorder = await screen.findByRole('button', { name: 'Region shortcut' });
+  fireEvent.click(recorder);
+  await screen.findByText('Press shortcut…');
+  expect(native).toHaveBeenCalledWith('set_shortcut_capture', { active: true });
+  fireEvent.blur(window);
+  await waitFor(() =>
+    expect(native).toHaveBeenCalledWith('set_shortcut_capture', { active: false }),
+  );
 });

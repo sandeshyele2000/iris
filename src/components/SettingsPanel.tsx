@@ -1,7 +1,51 @@
 import { useEffect, useState } from 'react';
+import { isTauri } from '@tauri-apps/api/core';
+import { native, errorMessage } from '../features/capture/api';
 import { Icon } from './Icon';
 import { modes } from '../features/capture/modes';
 import type { Settings } from '../features/capture/api';
+
+const keyLabels: Record<string, string> = {
+  CommandOrControl: '⌘',
+  Command: '⌘',
+  Super: '⌘',
+  Meta: '⌘',
+  Control: '⌃',
+  Ctrl: '⌃',
+  Alt: '⌥',
+  Option: '⌥',
+  Shift: '⇧',
+  Space: 'Space',
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+  Enter: '↵',
+  Backspace: '⌫',
+  Delete: '⌦',
+  BracketLeft: '[',
+  BracketRight: ']',
+  Minus: '−',
+  Equal: '=',
+  Comma: ',',
+  Period: '.',
+  Slash: '/',
+  Backslash: '\\',
+  Semicolon: ';',
+  Quote: "'",
+  Backquote: '`',
+};
+function ShortcutKeys({ value }: { value: string }) {
+  return value ? (
+    value
+      .split('+')
+      .map((key, index) => (
+        <kbd key={index}>{keyLabels[key] ?? key.replace(/^(Key|Digit)/, '')}</kbd>
+      ))
+  ) : (
+    <span className="muted">Set shortcut</span>
+  );
+}
 
 export function SettingsPanel({
   settings,
@@ -14,8 +58,47 @@ export function SettingsPanel({
   update: (settings: Settings) => Promise<void>;
   choose: () => Promise<void>;
 }) {
-  const [form, setForm] = useState(settings);
-  useEffect(() => setForm(settings), [settings]);
+  const [form, setForm] = useState({ ...settings, appearance: 'system' as const });
+  const [recording, setRecording] = useState<number>();
+  const [ready, setReady] = useState(false);
+  const [hint, setHint] = useState('');
+  const capturing = recording !== undefined;
+  useEffect(() => {
+    if (!capturing) return;
+    let mounted = true;
+    const cancel = () => setRecording(undefined);
+    window.addEventListener('blur', cancel);
+    setReady(false);
+    const pause = isTauri() ? native('set_shortcut_capture', { active: true }) : Promise.resolve();
+    void pause
+      .then(() => {
+        if (mounted) setReady(true);
+      })
+      .catch((error) => {
+        if (mounted) {
+          setHint(errorMessage(error));
+          setRecording(undefined);
+        }
+      });
+    return () => {
+      mounted = false;
+      window.removeEventListener('blur', cancel);
+      if (isTauri())
+        void native('set_shortcut_capture', { active: false }).catch((error) =>
+          setHint(errorMessage(error)),
+        );
+    };
+  }, [capturing]);
+  function setShortcut(index: number, value: string) {
+    setForm((current) => {
+      const shortcuts = [...current.shortcuts] as Settings['shortcuts'];
+      shortcuts[index] = value;
+      return { ...current, shortcuts };
+    });
+    setRecording(undefined);
+    setHint('');
+  }
+  useEffect(() => setForm({ ...settings, appearance: 'system' }), [settings]);
   return (
     <form
       className="settings-panel"
@@ -24,7 +107,7 @@ export function SettingsPanel({
         void update(form);
       }}
     >
-      <h2>Saving & appearance</h2>
+      <h2>Saving & exports</h2>
       <p>Set your defaults once. Every export stays on this Mac.</p>
       <label>
         Save directory
@@ -41,31 +124,16 @@ export function SettingsPanel({
           </button>
         </div>
       </label>
-      <div className="form-grid">
-        <label>
-          Image format
-          <select
-            value={form.format}
-            onChange={(e) => setForm({ ...form, format: e.target.value as Settings['format'] })}
-          >
-            <option value="png">PNG · lossless</option>
-            <option value="jpeg">JPEG · smaller file</option>
-          </select>
-        </label>
-        <label>
-          Appearance
-          <select
-            value={form.appearance}
-            onChange={(e) =>
-              setForm({ ...form, appearance: e.target.value as Settings['appearance'] })
-            }
-          >
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </label>
-      </div>
+      <label>
+        Image format
+        <select
+          value={form.format}
+          onChange={(e) => setForm({ ...form, format: e.target.value as Settings['format'] })}
+        >
+          <option value="png">PNG · lossless</option>
+          <option value="jpeg">JPEG · smaller file</option>
+        </select>
+      </label>
       <label>
         Filename format
         <input
@@ -78,25 +146,95 @@ export function SettingsPanel({
           Tokens: {'{date}'} · {'{time}'} · {'{mode}'}. A unique suffix is always added.
         </small>
       </label>
-      <h3>Global keyboard shortcuts</h3>
-      <p>
-        Use CommandOrControl, Shift, Alt and a key separated by +. Leave empty to disable.
-        Conflicting shortcuts are rejected.
+      <div className="shortcut-heading">
+        <Icon name="keyboard" />
+        <h3>Keyboard shortcuts</h3>
+      </div>
+      <div className="shortcut-list">
+        {modes.map(({ label, icon }, index) => (
+          <div className="shortcut-field" key={label}>
+            <span className="shortcut-label">
+              <Icon name={icon} size={18} />
+              {label}
+            </span>
+            <button
+              type="button"
+              className="shortcut-recorder"
+              aria-label={`${label} shortcut`}
+              aria-pressed={recording === index}
+              aria-describedby="shortcut-help"
+              disabled={disabled}
+              onClick={() => {
+                setHint('');
+                setRecording(index);
+              }}
+              onBlur={() => setRecording(undefined)}
+              onKeyDownCapture={(event) => {
+                if (recording !== index || !ready) return;
+                if (event.key === 'Tab') {
+                  setRecording(undefined);
+                  return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.key === 'Escape') {
+                  setRecording(undefined);
+                  return;
+                }
+                if (['Meta', 'Control', 'Shift', 'Alt'].includes(event.key) || event.repeat) return;
+                if (
+                  !event.metaKey &&
+                  !event.ctrlKey &&
+                  !event.altKey &&
+                  ['Backspace', 'Delete'].includes(event.key)
+                ) {
+                  setShortcut(index, '');
+                  return;
+                }
+                if (
+                  !event.metaKey &&
+                  !event.ctrlKey &&
+                  !event.altKey &&
+                  !/^F\d{1,2}$/.test(event.code)
+                ) {
+                  setHint('Hold ⌘, ⌃ or ⌥ with a key.');
+                  return;
+                }
+                const keys = [
+                  event.ctrlKey && 'Control',
+                  event.altKey && 'Alt',
+                  event.shiftKey && 'Shift',
+                  event.metaKey && 'Super',
+                  event.code,
+                ];
+                setShortcut(index, keys.filter(Boolean).join('+'));
+              }}
+            >
+              {recording === index ? (
+                <span>{ready ? 'Press shortcut…' : 'Preparing…'}</span>
+              ) : (
+                <ShortcutKeys value={form.shortcuts[index]} />
+              )}
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={`Clear ${label.toLowerCase()} shortcut`}
+              title="Disable shortcut"
+              disabled={disabled || !form.shortcuts[index]}
+              onClick={() => setShortcut(index, '')}
+            >
+              <Icon name="close" size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <p id="shortcut-help" className="shortcut-help" role="status">
+        {hint ||
+          (capturing
+            ? 'Press your new combination. Esc cancels.'
+            : 'Click a shortcut, then press your keys. × disables it.')}
       </p>
-      {modes.map(({ label }, index) => (
-        <label className="shortcut-field" key={label}>
-          <span>{label}</span>
-          <input
-            aria-label={`${label} shortcut`}
-            value={form.shortcuts[index]}
-            onChange={(e) => {
-              const shortcuts = [...form.shortcuts] as Settings['shortcuts'];
-              shortcuts[index] = e.target.value;
-              setForm({ ...form, shortcuts });
-            }}
-          />
-        </label>
-      ))}
       <label className="checkbox">
         <input
           type="checkbox"

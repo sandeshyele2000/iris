@@ -26,6 +26,7 @@ fn main() {
         .arg(out.join("swift-cache"));
     for file in [
         "CaptureEngine.swift",
+        "LaunchPermission.swift",
         "ScreenRecording.swift",
         "RegionSelection.swift",
         "ImageServices.swift",
@@ -59,6 +60,7 @@ fn main() {
         .arg(out.join("swift-cache"));
     for file in [
         "CaptureEngine.swift",
+        "LaunchPermission.swift",
         "ScreenRecording.swift",
         "RegionSelection.swift",
         "ImageServices.swift",
@@ -103,6 +105,7 @@ fn main() {
             "open_permissions",
             "choose_directory",
             "update_settings",
+            "set_shortcut_capture",
         ]),
     ))
     .expect("Tauri build configuration failed");
