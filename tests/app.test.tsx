@@ -263,3 +263,27 @@ it('releases global shortcuts while editing and restores them when leaving the r
     expect(native).toHaveBeenCalledWith('set_shortcut_capture', { active: false }),
   );
 });
+
+it('focuses the shortcut recorder on click so macOS keyboard events reach it', async () => {
+  render(<App />);
+  await screen.findByText('Something worth keeping?');
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  const recorder = await screen.findByRole('button', { name: 'Region shortcut' });
+  // fireEvent.click does not focus buttons, matching the WKWebView mouse behavior.
+  fireEvent.click(recorder);
+  await screen.findByText('Press shortcut…');
+  expect(recorder).toHaveFocus();
+  fireEvent.keyDown(document.activeElement!, {
+    code: 'Digit5',
+    key: '%',
+    metaKey: true,
+    shiftKey: true,
+  });
+  expect(within(recorder).getByText('5')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+  await waitFor(() =>
+    expect(native).toHaveBeenCalledWith('update_settings', {
+      settings: { ...settings, shortcuts: ['', 'Shift+Super+Digit5', ''] },
+    }),
+  );
+});

@@ -8,7 +8,7 @@ Rust exposes a fixed set of commands, validates IDs and operation parameters, ma
 
 Swift is statically linked into the Iris executable by `src-tauri/build.rs`, with macOS 14 minimum. Rust sends a JSON request through a small C ABI; Swift copies it before returning and dispatches AppKit/ScreenCaptureKit work to MainActor. A one-shot callback carries `{ok:true,result}` or `{ok:false,error:{code,message,domain?,nativeCode?}}` back to an awaited Rust channel. The reply pointer remains valid during the callback and is copied synchronously; the boxed Rust sender is consumed exactly once. Native UI operations remain alive until completion or user cancellation, rather than killing a separate process while a dialog is open. No screen capture or permission request runs in a sidecar. `NativeCLI.swift` is a separate fixture/diagnostic executable used only by tests, never bundled or launched by the app.
 
-The product is Iris, the bundle ID is `com.iris.screenshot`, the Rust package/executable is `iris-screenshot`, and the standalone fixture executable is `iris-capture`. Private data is stored under the Iris bundle identifier. This identity change requires a new Screen Recording grant. A Developer ID signing identity is still needed for consistent distribution/upgrades; ad hoc rebuilds can invalidate macOS's earlier grants.
+The product is Iris, the bundle ID is `com.iris.capture`, the Rust package/executable is `iris`, and the standalone fixture executable is `iris-capture`. Private data is stored under the Iris bundle identifier. This identity change requires a new Screen Recording grant. A Developer ID signing identity is still needed for consistent distribution/upgrades; ad hoc rebuilds can invalidate macOS's earlier grants.
 
 ## Capture
 
@@ -58,3 +58,5 @@ Pinned previews use separate always-on-top webviews. Their capability permits on
 - [Tauri autostart](https://v2.tauri.app/plugin/autostart/)
 
 The main window uses Tauri transparency and the native macOS sidebar vibrancy material beneath translucent web surfaces. App and source SVG icons share the eye/indigo identity. Shortcut controls capture key combinations and render keycaps; global shortcuts are unregistered during editing and restored on completion, blur, unmount, or native window focus loss.
+
+When adopting `com.iris.capture`, startup atomically moves the previous `com.iris.screenshot/library` only if the destination library is absent. The old library lock must be acquired before moving it; a running older app blocks migration. Existing destination data takes precedence. This migration carries images and settings, while macOS Screen Recording permission must be granted separately to the new identity.

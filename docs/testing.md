@@ -68,11 +68,11 @@ Scrolling capture is not implemented and is not part of acceptance. Cross-displa
 
 ## Iris regression checks
 
-Verify the window title and app name are Iris, while diagnostics reports bundle ID `com.iris.screenshot`. With permission already granted, capture must proceed without another explicit permission request. Compare diagnostics from Iris itself, not the fixture CLI. Minimize the main window, press ⇧⌘2 or use the menu-bar Capture Area item, drag a rectangle, and confirm the editor opens on the persisted result. Repeat and press Escape; Iris should remain minimized. Background operations run in Rust and notify the UI after capture.
+Verify the window title and app name are Iris, while diagnostics reports bundle ID `com.iris.capture`. With permission already granted, capture must proceed without another explicit permission request. Compare diagnostics from Iris itself, not the fixture CLI. Minimize the main window, press ⇧⌘2 or use the menu-bar Capture Area item, drag a rectangle, and confirm the editor opens on the persisted result. Repeat and press Escape; Iris should remain minimized. Background operations run in Rust and notify the UI after capture.
 
-Before the complete identity rename, the Iris UI and in-process native bridge were inspected at runtime. ScreenCaptureKit returned user-denied `-3801`, and System Settings showed an enabled entry for an older build. Those observations do not verify capture under the new identity. The rebuilt `com.iris.screenshot` application requires its own grant and fresh runtime acceptance. No successful capture is claimed.
+Before the complete identity rename, the Iris UI and in-process native bridge were inspected at runtime. ScreenCaptureKit returned user-denied `-3801`, and System Settings showed an enabled entry for an older build. Those observations do not verify capture under the new identity. The rebuilt `com.iris.capture` application requires its own grant and fresh runtime acceptance. No successful capture is claimed.
 
-The complete project rename uses `com.iris.screenshot` and `iris-screenshot`. Earlier runtime permission observations describe the previous identity; reauthorize the rebuilt Iris app before capture acceptance.
+The complete project rename uses `com.iris.capture` and `iris`. Earlier runtime permission observations describe the previous identity; reauthorize the rebuilt Iris app before capture acceptance.
 
 ## Screen recording
 

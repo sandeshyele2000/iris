@@ -2,7 +2,7 @@ import Foundation
 
 @main struct PermissionFixture {
     @MainActor static func main() {
-        let suite = "com.iris.screenshot.test.\(UUID().uuidString)"
+        let suite = "com.iris.capture.test.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         var requests = 0

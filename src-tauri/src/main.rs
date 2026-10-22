@@ -721,11 +721,11 @@ fn main() {
                 .build(),
         )
         .setup(|app| {
-            let mut store = Store::open(
-                app.path().app_local_data_dir()?.join("library"),
-                app.path().picture_dir()?,
-            )
-            .map_err(|e| std::io::Error::other(e.to_string()))?;
+            let data = app.path().app_local_data_dir()?;
+            let legacy = data.with_file_name("com.iris.screenshot").join("library");
+            let mut store =
+                Store::open_with_legacy(data.join("library"), app.path().picture_dir()?, legacy)
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
             if let Err(error) = shortcuts(app.handle(), &store.db.settings.shortcuts) {
                 store.startup_errors.push(error.to_string());
             }

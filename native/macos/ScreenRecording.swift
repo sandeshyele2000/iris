@@ -5,7 +5,7 @@ import ScreenCaptureKit
 // Writer state is confined to queue; ScreenCaptureKit delivers frames on that queue.
 final class ScreenRecording: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
     let path: String
-    private let queue = DispatchQueue(label: "com.iris.screenshot.recording")
+    private let queue = DispatchQueue(label: "com.iris.capture.recording")
     private let writer: AVAssetWriter
     private let input: AVAssetWriterInput
     private var stream: SCStream?
@@ -149,7 +149,7 @@ final class ScreenRecording: NSObject, SCStreamOutput, SCStreamDelegate, @unchec
             guard let display = content.displays.first(where: { $0.displayID == id }) else {
                 throw HelperFailure(code: "DISPLAY_UNAVAILABLE", message: "Display disconnected. Refresh sources.")
             }
-            let ownApps = content.applications.filter { $0.bundleIdentifier == "com.iris.screenshot" }
+            let ownApps = content.applications.filter { $0.bundleIdentifier == "com.iris.capture" }
             let filter = SCContentFilter(display: display, excludingApplications: ownApps, exceptingWindows: [])
             let config = SCStreamConfiguration()
             // H.264-compatible even dimensions, preserving aspect ratio up to 4K.

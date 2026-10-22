@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { isTauri } from '@tauri-apps/api/core';
 import { Icon } from './components/Icon';
+import { ShortcutKeys } from './components/ShortcutKeys';
 import { SettingsPanel } from './components/SettingsPanel';
 import { modes } from './features/capture/modes';
 import { native, errorMessage } from './features/capture/api';
@@ -629,7 +630,11 @@ function Workspace() {
                     : 'Take your first screenshot using the controls above.'}
                 </p>
                 <span className="shortcut-hint">
-                  {data?.settings.shortcuts[1] || 'Choose a shortcut in Settings'}{' '}
+                  {data?.settings.shortcuts[1] ? (
+                    <ShortcutKeys value={data.settings.shortcuts[1]} />
+                  ) : (
+                    'Choose a shortcut in Settings'
+                  )}
                   <span>for a region capture</span>
                 </span>
               </div>

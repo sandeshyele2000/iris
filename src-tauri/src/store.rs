@@ -168,6 +168,46 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
     .map_err(io)
 }
 impl Store {
+    pub fn open_with_legacy(root: PathBuf, pictures: PathBuf, legacy: PathBuf) -> Result<Self> {
+        if !root.exists() && legacy.join("library.json").exists() {
+            if fs::symlink_metadata(&legacy)
+                .map_err(io)?
+                .file_type()
+                .is_symlink()
+                || fs::symlink_metadata(legacy.join(".lock"))
+                    .is_ok_and(|meta| meta.file_type().is_symlink())
+            {
+                return Err(failure(
+                    "UNSAFE_PATH",
+                    "Legacy library must not use symbolic links",
+                ));
+            }
+            let lock = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .open(legacy.join(".lock"))
+                .map_err(io)?;
+            lock.try_lock().map_err(|_| {
+                failure(
+                    "LIBRARY_IN_USE",
+                    "Quit the earlier Iris app before moving its library to the new app identity.",
+                )
+            })?;
+            // Rename the entire library atomically while holding its existing process lock.
+            // A library already created under the new identity always takes precedence.
+            if !root.exists() {
+                fs::create_dir_all(
+                    root.parent()
+                        .ok_or_else(|| failure("INVALID_PATH", "Missing library parent"))?,
+                )
+                .map_err(io)?;
+                fs::rename(&legacy, &root).map_err(io)?;
+            }
+        }
+        Self::open(root, pictures)
+    }
     pub fn open(root: PathBuf, pictures: PathBuf) -> Result<Self> {
         if fs::symlink_metadata(&root).is_ok_and(|m| m.file_type().is_symlink()) {
             return Err(failure(
@@ -444,6 +484,54 @@ mod tests {
             edits: json!([]),
             export_path: None,
         }
+    }
+    #[test]
+    fn identity_migration_preserves_library_and_refuses_a_running_writer() {
+        let mut old = store();
+        let row = record();
+        let id = row.id.clone();
+        let mut next = old.db.clone();
+        next.captures.push(row);
+        old.commit(next).unwrap();
+        write_new(&old.root.join(format!("{id}.png")), b"original").unwrap();
+        let legacy = old.root.clone();
+        let root = legacy.with_file_name(format!("iris-migrated-{}", uuid::Uuid::new_v4()));
+        let error = Store::open_with_legacy(root.clone(), PathBuf::new(), legacy.clone())
+            .err()
+            .unwrap();
+        assert_eq!(error["code"], "LIBRARY_IN_USE");
+        assert!(legacy.exists());
+        assert!(!root.exists());
+        drop(old);
+        let migrated =
+            Store::open_with_legacy(root.clone(), PathBuf::new(), legacy.clone()).unwrap();
+        assert_eq!(migrated.record(&id).unwrap().name, "Capture");
+        assert_eq!(
+            fs::read(migrated.path(&id, false).unwrap()).unwrap(),
+            b"original"
+        );
+        assert!(!legacy.exists());
+        drop(migrated);
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn identity_migration_does_not_replace_an_existing_library() {
+        let mut old = store();
+        let mut next = old.db.clone();
+        next.settings.filename = "Old-{date}".into();
+        old.commit(next).unwrap();
+        let legacy = old.root.clone();
+        drop(old);
+        let current = store();
+        let root = current.root.clone();
+        drop(current);
+        let reopened =
+            Store::open_with_legacy(root.clone(), PathBuf::new(), legacy.clone()).unwrap();
+        assert_ne!(reopened.db.settings.filename, "Old-{date}");
+        assert!(legacy.join("library.json").exists());
+        drop(reopened);
+        fs::remove_dir_all(legacy).unwrap();
+        fs::remove_dir_all(root).unwrap();
     }
     #[test]
     fn filenames_are_safe_unique_and_expand_tokens() {

@@ -2,50 +2,9 @@ import { useEffect, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import { native, errorMessage } from '../features/capture/api';
 import { Icon } from './Icon';
+import { ShortcutKeys } from './ShortcutKeys';
 import { modes } from '../features/capture/modes';
 import type { Settings } from '../features/capture/api';
-
-const keyLabels: Record<string, string> = {
-  CommandOrControl: '⌘',
-  Command: '⌘',
-  Super: '⌘',
-  Meta: '⌘',
-  Control: '⌃',
-  Ctrl: '⌃',
-  Alt: '⌥',
-  Option: '⌥',
-  Shift: '⇧',
-  Space: 'Space',
-  ArrowUp: '↑',
-  ArrowDown: '↓',
-  ArrowLeft: '←',
-  ArrowRight: '→',
-  Enter: '↵',
-  Backspace: '⌫',
-  Delete: '⌦',
-  BracketLeft: '[',
-  BracketRight: ']',
-  Minus: '−',
-  Equal: '=',
-  Comma: ',',
-  Period: '.',
-  Slash: '/',
-  Backslash: '\\',
-  Semicolon: ';',
-  Quote: "'",
-  Backquote: '`',
-};
-function ShortcutKeys({ value }: { value: string }) {
-  return value ? (
-    value
-      .split('+')
-      .map((key, index) => (
-        <kbd key={index}>{keyLabels[key] ?? key.replace(/^(Key|Digit)/, '')}</kbd>
-      ))
-  ) : (
-    <span className="muted">Set shortcut</span>
-  );
-}
 
 export function SettingsPanel({
   settings,
@@ -164,7 +123,9 @@ export function SettingsPanel({
               aria-pressed={recording === index}
               aria-describedby="shortcut-help"
               disabled={disabled}
-              onClick={() => {
+              onClick={(event) => {
+                // WKWebView does not focus buttons on mouse clicks.
+                event.currentTarget.focus();
                 setHint('');
                 setRecording(index);
               }}

@@ -352,11 +352,18 @@ nav {
   border-radius: 7px;
   color: var(--muted);
 }
+.search:focus-within {
+  border-color: var(--accent);
+}
 .search input {
   width: 140px;
   border: 0;
   padding-left: 0;
   font-size: 11px;
+  background: transparent;
+}
+.search input:focus-visible {
+  outline: none;
 }
 .empty-library {
   min-height: 390px;
@@ -388,6 +395,9 @@ nav {
   font-size: 12px;
 }
 .shortcut-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 10px;
   background: var(--panel);
   border: 1px solid var(--border);

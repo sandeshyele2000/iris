@@ -44,7 +44,7 @@ struct CaptureEngine {
             return ["displays": content.displays.map { display in
                 ["id": display.displayID, "width": display.width, "height": display.height,
                  "x": display.frame.origin.x, "y": display.frame.origin.y] as [String: Any]
-            }, "windows": content.windows.filter { $0.frame.width > 0 && $0.frame.height > 0 && $0.owningApplication?.bundleIdentifier != "com.iris.screenshot" }.map { window in
+            }, "windows": content.windows.filter { $0.frame.width > 0 && $0.frame.height > 0 && $0.owningApplication?.bundleIdentifier != "com.iris.capture" }.map { window in
                 ["id": window.windowID, "title": window.title ?? "Untitled",
                  "width": window.frame.width, "height": window.frame.height,
                  "application": window.owningApplication?.applicationName ?? "Unknown"] as [String: Any]
@@ -72,7 +72,7 @@ struct CaptureEngine {
                     throw HelperFailure(code: "DISPLAY_UNAVAILABLE", message: "Display disconnected. Refresh sources.")
                 }
                 // Exclude Iris windows, including pinned previews, using its own bundle identity.
-                let ownApps = content.applications.filter { $0.bundleIdentifier == "com.iris.screenshot" }
+                let ownApps = content.applications.filter { $0.bundleIdentifier == "com.iris.capture" }
                 filter = SCContentFilter(display: display, excludingApplications: ownApps, exceptingWindows: [])
                 if command == "capture-region" { region = try await selectRegion(displayID: sourceID) }
             }
