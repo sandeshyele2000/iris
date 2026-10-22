@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.tools/
+src-tauri/target/
+src-tauri/binaries/iris-capture-*
+native/macos/.build/
+.DS_Store
+*.tsbuildinfo
+src-tauri/gen/schemas/
+*.png
+!src-tauri/icons/*.png

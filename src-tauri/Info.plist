@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>Iris captures screenshots and records a selected display when you request it. Images and videos stay on this Mac.</string>
+</dict></plist>

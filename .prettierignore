@@ -1,0 +1,8 @@
+node_modules
+dist
+.tools
+src-tauri/target
+src-tauri/gen
+src-tauri/binaries
+native/macos/.build
+pnpm-lock.yaml

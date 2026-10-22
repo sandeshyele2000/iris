@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-library-image"
+description = "Enables the library_image command without any pre-configured scope."
+commands.allow = ["library_image"]
+
+[[permission]]
+identifier = "deny-library-image"
+description = "Denies the library_image command without any pre-configured scope."
+commands.deny = ["library_image"]

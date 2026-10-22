@@ -1,0 +1,6 @@
+{
+  "identifier": "pin",
+  "windows": ["pin-*"],
+  "permissions": ["allow-library-image", "core:event:allow-listen", "core:event:allow-unlisten"],
+  "description": "Pinned local images can only load an image from the local library."
+}
