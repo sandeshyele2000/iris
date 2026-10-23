@@ -43,8 +43,13 @@ fn path_arg(path: &std::path::Path) -> Result<String> {
 }
 
 #[tauri::command]
-async fn diagnose() -> Result<Value> {
-    helper(&["diagnose".into()]).await
+async fn diagnose(verify_access: Option<bool>) -> Result<Value> {
+    let args = if verify_access.unwrap_or(false) {
+        vec!["diagnose".into(), "verify-access".into()]
+    } else {
+        vec!["diagnose".into()]
+    };
+    helper(&args).await
 }
 #[tauri::command]
 async fn request_permission() -> Result<Value> {
@@ -742,8 +747,13 @@ fn main() {
             tray(app.handle())?;
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                if let Err(error) = helper(&["startup-permission".into()]).await {
-                    let _ = handle.emit_to("main", "capture-error", error);
+                match helper(&["startup-permission".into()]).await {
+                    Ok(status) => {
+                        let _ = handle.emit_to("main", "permission-changed", status);
+                    }
+                    Err(error) => {
+                        let _ = handle.emit_to("main", "capture-error", error);
+                    }
                 }
             });
             Ok(())

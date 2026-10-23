@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -48,3 +49,44 @@ test('invalid capture input fails before permission checks and never writes a PN
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test(
+  'live access checks override stale preflight without caching grants',
+  { timeout: 60_000 },
+  () => {
+    const directory = mkdtempSync(join(tmpdir(), 'iris-access-test-'));
+    try {
+      const executable = join(directory, 'access-fixture');
+      const compile = spawnSync(
+        'xcrun',
+        [
+          'swiftc',
+          '-swift-version',
+          '6',
+          '-parse-as-library',
+          '-module-cache-path',
+          join(directory, 'swift-cache'),
+          ...[
+            'CaptureEngine.swift',
+            'LaunchPermission.swift',
+            'ScreenRecording.swift',
+            'ImageServices.swift',
+            'RegionSelection.swift',
+          ].map((file) => fileURLToPath(new URL(`../native/macos/${file}`, import.meta.url))),
+          fileURLToPath(new URL('./PermissionAccessFixture.swift', import.meta.url)),
+          '-o',
+          executable,
+        ],
+        { encoding: 'utf8', timeout: 45_000 },
+      );
+      assert.ifError(compile.error);
+      assert.equal(compile.status, 0, compile.stderr);
+      const fixture = spawnSync(executable, [], { encoding: 'utf8', timeout: 10_000 });
+      assert.ifError(fixture.error);
+      assert.equal(fixture.status, 0, fixture.stderr);
+      assert.match(fixture.stdout, /Verified access overrides stale preflight/);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);

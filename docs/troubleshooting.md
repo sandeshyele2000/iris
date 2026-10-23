@@ -49,3 +49,20 @@ A prior grant may still refer to an older ad hoc-signed binary or a different in
 Minimize Iris with the title-bar button or its minimize icon. Press the configured area shortcut (default ⇧⌘2), or choose **Capture Area** from Iris's menu-bar icon. The native overlay appears on the display under the pointer; drag to capture or press Escape to cancel. Successful capture opens the editor; cancellation leaves Iris minimized. The shortcut and tray path execute in Rust and do not depend on a minimized webview handling an input event.
 
 Earlier runtime inspection found an enabled entry for a previous build while the updated executable received `-3801`. After the complete identity rename, use the + button to select `src-tauri/target/release/bundle/macos/Iris.app`, enable it, and quit/reopen Iris. A stable Developer ID build in a stable installed location is recommended to avoid grant changes after ad hoc rebuilds.
+
+## Permission enabled but Iris still reports no access
+
+Iris now refreshes permission status when the native window regains focus, when the webview becomes visible, and when Diagnostics opens. Returning from System Settings triggers bounded follow-up checks while a grant propagates. Explicit permission requests use their own result instead of immediately replacing it with an earlier preflight reading. Older asynchronous responses cannot replace a newer result, and a verified grant clears the previous permission error banner.
+
+Active checks enumerate ScreenCaptureKit sources without capturing or saving an image. A successful native check takes precedence over a false CoreGraphics preflight result. There is no process-lifetime cached grant; later checks can detect revoked access. A passive false preflight is shown as unconfirmed rather than asserting that the user never granted permission. Non-permission API failures are also kept distinct from permission denial.
+
+If ScreenCaptureKit still denies this running process after the toggle is enabled, Diagnostics shows the current bundle identifier and executable path. Check the permission for that exact copy of Iris; old `com.iris.screenshot` entries do not authorize `com.iris.capture`, and moving or rebuilding ad hoc-signed copies can change permission attribution. Quit and reopen that copy if macOS requires it. Refreshing the UI cannot grant access that macOS still refuses. Iris does not reset or edit the privacy database.
+
+The current default build uses ad hoc signing (`signingIdentity: "-"`). Its designated requirement is pinned to the executable's code hash, which changes after rebuilding. An enabled Settings entry can therefore belong to the previous build. For local development with a stable identity, choose your Apple Development certificate and override the signing configuration when building:
+
+```sh
+pnpm app:build --config '{"bundle":{"macOS":{"signingIdentity":"Apple Development: Your Name (TEAMIDENTIFIER)"}}}'
+open src-tauri/target/release/bundle/macos/Iris.app
+```
+
+Grant access to that signed copy once, and reopen it if macOS requests it. Use the same certificate and bundle identifier for subsequent builds. This local development certificate does not replace Developer ID signing and notarization for public distribution. `pnpm app:dev` launches the development executable; use the bundled app when verifying the installed application's privacy identity.

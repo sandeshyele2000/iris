@@ -9,6 +9,7 @@ vi.mock('../src/features/capture/api', async (importOriginal) => ({
 const desktop = vi.hoisted(() => ({
   enabled: false,
   minimize: vi.fn(),
+  focus: undefined as undefined | ((event: { payload: boolean }) => void),
   close: undefined as undefined | ((event: { preventDefault: () => void }) => void),
   listeners: new Map<string, (event: { payload: unknown }) => void>(),
 }));
@@ -16,6 +17,12 @@ vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => desktop.enabled }));
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({
     minimize: desktop.minimize,
+    onFocusChanged: async (handler: (event: { payload: boolean }) => void) => {
+      desktop.focus = handler;
+      return () => {
+        desktop.focus = undefined;
+      };
+    },
     onCloseRequested: async (handler: (event: { preventDefault: () => void }) => void) => {
       desktop.close = handler;
       return () => {
@@ -38,6 +45,19 @@ const settings = {
   shortcuts: ['', '', ''],
   launchAtLogin: false,
 };
+const unavailablePermission = {
+  permissionGranted: false,
+  permissionState: 'denied',
+  preflightGranted: false,
+  bundleIdentifier: 'com.iris.capture',
+  executablePath: '/test/Iris.app/Contents/MacOS/iris',
+  macOS: 'Test macOS',
+};
+const grantedPermission = {
+  ...unavailablePermission,
+  permissionGranted: true,
+  permissionState: 'granted',
+};
 const sources = { displays: [{ id: 1, x: 0, y: 0, width: 1920, height: 1080 }], windows: [] };
 beforeEach(() => {
   native.mockReset();
@@ -45,7 +65,9 @@ beforeEach(() => {
   desktop.minimize.mockReset();
   desktop.listeners.clear();
   desktop.close = undefined;
+  desktop.focus = undefined;
   native.mockImplementation(async (command) => {
+    if (command === 'diagnose') return unavailablePermission;
     if (command === 'library') return { settings, captures: [], startupErrors: [] };
     if (command === 'list_sources') return sources;
     return {};
@@ -66,6 +88,7 @@ it('shows an accessible empty library and settings', async () => {
 });
 it('shows a denied capture without repeatedly requesting permission', async () => {
   native.mockImplementation(async (command) => {
+    if (command === 'diagnose') return unavailablePermission;
     if (command === 'library') return { settings, captures: [], startupErrors: [] };
     if (command === 'list_sources') throw { code: 'PERMISSION_REQUIRED', message: 'Denied' };
     if (command === 'request_permission') return { permissionGranted: false };
@@ -79,6 +102,7 @@ it('shows a denied capture without repeatedly requesting permission', async () =
 });
 it('reports capture API failure with native diagnostics', async () => {
   native.mockImplementation(async (command) => {
+    if (command === 'diagnose') return unavailablePermission;
     if (command === 'library') return { settings, captures: [], startupErrors: [] };
     if (command === 'list_sources') return sources;
     if (command === 'capture')
@@ -139,6 +163,7 @@ it('opens a completed background capture from the backend without invoking captu
     exportPath: null,
   };
   native.mockImplementation(async (command) => {
+    if (command === 'diagnose') return unavailablePermission;
     if (command === 'library')
       return { settings, captures: completed ? [capture] : [], startupErrors: [] };
     if (command === 'library_image') return 'data:image/png;base64,fixture';
@@ -160,6 +185,7 @@ it('opens a completed background capture from the backend without invoking captu
 
 it('starts recording the selected display and stops to save the MP4', async () => {
   native.mockImplementation(async (command) => {
+    if (command === 'diagnose') return unavailablePermission;
     if (command === 'library') return { settings, captures: [], startupErrors: [] };
     if (command === 'list_sources') return sources;
     if (command === 'start_recording') return { active: true };
@@ -183,6 +209,7 @@ it('starts recording the selected display and stops to save the MP4', async () =
 it('keeps recording controls usable after a failed start and receives tray stop updates', async () => {
   desktop.enabled = true;
   native.mockImplementation(async (command) => {
+    if (command === 'diagnose') return unavailablePermission;
     if (command === 'library') return { settings, captures: [], startupErrors: [] };
     if (command === 'recording_status') return { active: false };
     if (command === 'start_recording')
@@ -210,6 +237,7 @@ it('keeps recording controls usable after a failed start and receives tray stop 
 it('preserves the recording webview when the native close button is pressed', async () => {
   desktop.enabled = true;
   native.mockImplementation(async (command) => {
+    if (command === 'diagnose') return unavailablePermission;
     if (command === 'library') return { settings, captures: [], startupErrors: [] };
     if (command === 'recording_status') return { active: true };
   });
@@ -286,4 +314,91 @@ it('focuses the shortcut recorder on click so macOS keyboard events reach it', a
       settings: { ...settings, shortcuts: ['', 'Shift+Super+Digit5', ''] },
     }),
   );
+});
+
+it('refreshes access after returning from System Settings and clears the stale permission error', async () => {
+  desktop.enabled = true;
+  let granted = false;
+  native.mockImplementation(async (command) => {
+    if (command === 'library') return { settings, captures: [], startupErrors: [] };
+    if (command === 'recording_status') return { active: false };
+    if (command === 'diagnose') return granted ? grantedPermission : unavailablePermission;
+    if (command === 'list_sources')
+      throw { code: 'PERMISSION_REQUIRED', message: 'Denied before settings changed' };
+  });
+  render(<App />);
+  await screen.findByText('Something worth keeping?');
+  fireEvent.click(screen.getByRole('button', { name: 'Full screen' }));
+  await screen.findByRole('alert');
+  fireEvent.click(screen.getByRole('button', { name: 'Diagnostics' }));
+  await screen.findByText('Access unavailable to this running copy of Iris');
+  granted = true;
+  await act(async () => {
+    desktop.focus!({ payload: true });
+  });
+  await screen.findByText('Granted to Iris');
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(native).toHaveBeenCalledWith('diagnose', { verifyAccess: true });
+  expect(native).not.toHaveBeenCalledWith('request_permission');
+});
+
+it('uses the permission request result without immediately replacing it with stale preflight', async () => {
+  desktop.enabled = true;
+  native.mockImplementation(async (command) => {
+    if (command === 'library') return { settings, captures: [], startupErrors: [] };
+    if (command === 'recording_status') return { active: false };
+    if (command === 'diagnose') return unavailablePermission;
+    if (command === 'request_permission') return grantedPermission;
+  });
+  render(<App />);
+  await screen.findByText('Something worth keeping?');
+  fireEvent.click(screen.getByRole('button', { name: 'Diagnostics' }));
+  await screen.findByText('Access unavailable to this running copy of Iris');
+  fireEvent.click(screen.getByRole('button', { name: 'Request access' }));
+  await screen.findByText('Granted to Iris');
+});
+
+it('ignores an older denied check that finishes after a newer verified grant', async () => {
+  desktop.enabled = true;
+  let pending!: (status: typeof unavailablePermission) => void;
+  let checks = 0;
+  native.mockImplementation(async (command, args) => {
+    if (command === 'library') return { settings, captures: [], startupErrors: [] };
+    if (command === 'recording_status') return { active: false };
+    if (command === 'diagnose') {
+      if (!args.verifyAccess) return unavailablePermission;
+      if (++checks === 1)
+        return new Promise((resolve) => {
+          pending = resolve;
+        });
+      return grantedPermission;
+    }
+  });
+  render(<App />);
+  await screen.findByText('Something worth keeping?');
+  fireEvent.click(screen.getByRole('button', { name: 'Diagnostics' }));
+  await waitFor(() => expect(checks).toBe(1));
+  fireEvent.focus(window);
+  await screen.findByText('Granted to Iris');
+  await act(async () => {
+    pending(unavailablePermission);
+  });
+  expect(screen.getByText('Granted to Iris')).toBeInTheDocument();
+});
+
+it('rechecks a previous grant on focus and reports revoked access', async () => {
+  desktop.enabled = true;
+  let granted = true;
+  native.mockImplementation(async (command) => {
+    if (command === 'library') return { settings, captures: [], startupErrors: [] };
+    if (command === 'recording_status') return { active: false };
+    if (command === 'diagnose') return granted ? grantedPermission : unavailablePermission;
+  });
+  render(<App />);
+  await screen.findByText('Something worth keeping?');
+  fireEvent.click(screen.getByRole('button', { name: 'Diagnostics' }));
+  await screen.findByText('Granted to Iris');
+  granted = false;
+  fireEvent.focus(window);
+  await screen.findByText('Access unavailable to this running copy of Iris');
 });

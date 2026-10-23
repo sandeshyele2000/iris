@@ -7,6 +7,11 @@ export interface Recording {
 }
 export interface Diagnostic {
   permissionGranted: boolean;
+  permissionState: 'granted' | 'unverified' | 'denied';
+  preflightGranted: boolean;
+  bundleIdentifier: string;
+  executablePath: string;
+  permissionError?: { message: string; domain: string; nativeCode: number };
   macOS: string;
 }
 export interface Sources {

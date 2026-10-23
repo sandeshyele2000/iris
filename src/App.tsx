@@ -7,6 +7,7 @@ import { ShortcutKeys } from './components/ShortcutKeys';
 import { SettingsPanel } from './components/SettingsPanel';
 import { modes } from './features/capture/modes';
 import { native, errorMessage } from './features/capture/api';
+import { useScreenRecordingPermission } from './features/capture/useScreenRecordingPermission';
 import type {
   Capture,
   Diagnostic,
@@ -70,7 +71,15 @@ function Workspace() {
   const [windowId, setWindowId] = useState<number>();
   const [windowPicker, setWindowPicker] = useState(false);
   const [recording, setRecording] = useState<Recording>({ active: false });
-  const [diagnostic, setDiagnostic] = useState<Diagnostic>();
+  const { diagnostic, refresh: refreshPermission, requestAccess } = useScreenRecordingPermission();
+  useEffect(() => {
+    if (diagnostic?.permissionGranted) {
+      setError((current) => (current.startsWith('PERMISSION_REQUIRED:') ? '' : current));
+    }
+  }, [diagnostic?.permissionGranted]);
+  useEffect(() => {
+    if (page === 'diagnostics') void refreshPermission().catch(() => {});
+  }, [page, refreshPermission]);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('newest');
   const [busy, setBusy] = useState(false);
@@ -868,7 +877,7 @@ function Workspace() {
                 disabled={disabled}
                 onClick={() =>
                   void task(async () => {
-                    setDiagnostic(await native<Diagnostic>('diagnose'));
+                    await refreshPermission();
                   })
                 }
               >
@@ -878,8 +887,7 @@ function Workspace() {
                 disabled={disabled}
                 onClick={() =>
                   void task(async () => {
-                    await native('request_permission');
-                    setDiagnostic(await native<Diagnostic>('diagnose'));
+                    await requestAccess();
                   })
                 }
               >
@@ -903,8 +911,23 @@ function Workspace() {
                   <dd>
                     {diagnostic.permissionGranted
                       ? 'Granted to Iris'
-                      : 'Not granted — enable the app macOS identifies, then reopen it'}
+                      : diagnostic.permissionState === 'denied'
+                        ? 'Access unavailable to this running copy of Iris'
+                        : 'Access not confirmed yet'}
                   </dd>
+                  {!diagnostic.permissionGranted && (
+                    <>
+                      <dt>Next step</dt>
+                      <dd>
+                        If Iris is already enabled in System Settings, quit and reopen this copy,
+                        then check again.
+                      </dd>
+                    </>
+                  )}
+                  <dt>App identity</dt>
+                  <dd>{diagnostic.bundleIdentifier}</dd>
+                  <dt>Running copy</dt>
+                  <dd>{diagnostic.executablePath}</dd>
                   <dt>macOS</dt>
                   <dd>{diagnostic.macOS}</dd>
                 </dl>

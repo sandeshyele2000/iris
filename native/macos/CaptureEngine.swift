@@ -11,13 +11,38 @@ struct HelperFailure: Error {
 }
 
 struct CaptureEngine {
-    @MainActor static var accessVerified = false
-
     @MainActor static func shareableContent() async throws -> SCShareableContent {
         // The capture API is authoritative. Preflight can lag behind a newly granted permission.
-        let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
-        accessVerified = true
-        return content
+        return try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+    }
+
+    @MainActor static func permissionSnapshot(
+        verifyAccess: Bool,
+        preflight: Bool = CGPreflightScreenCaptureAccess(),
+        probe: @MainActor () async throws -> Void = { _ = try await CaptureEngine.shareableContent() }
+    ) async -> [String: Any] {
+        var state = preflight ? "granted" : "unverified"
+        var failure: [String: Any]?
+        if verifyAccess {
+            do {
+                try await probe()
+                state = "granted"
+            } catch {
+                let error = error as NSError
+                state = error.domain == SCStreamErrorDomain && error.code == -3801 ? "denied" : "unverified"
+                failure = ["message": error.localizedDescription, "domain": error.domain, "nativeCode": error.code]
+            }
+        }
+        var result: [String: Any] = [
+            "permissionGranted": state == "granted", "permissionState": state,
+            "preflightGranted": preflight,
+            "bundleIdentifier": Bundle.main.bundleIdentifier ?? "command-line diagnostic",
+            "executablePath": Bundle.main.executableURL?.path ?? CommandLine.arguments[0],
+            "processId": ProcessInfo.processInfo.processIdentifier,
+            "macOS": ProcessInfo.processInfo.operatingSystemVersionString
+        ]
+        if let failure { result["permissionError"] = failure }
+        return result
     }
 
     @MainActor static func run(_ args: [String], input: String? = nil) async throws -> [String: Any] {
@@ -28,17 +53,17 @@ struct CaptureEngine {
         if let result = try await RecordingController.run(args) { return result }
         switch command {
         case "diagnose" where args.count == 1:
-            return ["permissionGranted": CGPreflightScreenCaptureAccess() || accessVerified,
-                    "bundleIdentifier": Bundle.main.bundleIdentifier ?? "command-line diagnostic",
-                    "processId": ProcessInfo.processInfo.processIdentifier,
-                    "macOS": ProcessInfo.processInfo.operatingSystemVersionString]
+            return await permissionSnapshot(verifyAccess: false)
+        case "diagnose" where args == ["diagnose", "verify-access"]:
+            return await permissionSnapshot(verifyAccess: true)
         case "startup-permission" where args.count == 1:
-            return ["permissionGranted": LaunchPermission.request(
-                granted: CGPreflightScreenCaptureAccess() || accessVerified,
-                requestAccess: { CGRequestScreenCaptureAccess() })]
+            let granted = LaunchPermission.request(
+                granted: CGPreflightScreenCaptureAccess(),
+                requestAccess: { CGRequestScreenCaptureAccess() })
+            return await permissionSnapshot(verifyAccess: granted)
         case "request-permission" where args.count == 1:
-            return ["permissionGranted": CGPreflightScreenCaptureAccess() || accessVerified || CGRequestScreenCaptureAccess(),
-                    "message": "If permission changed, quit and reopen the responsible app before capturing."]
+            _ = CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess()
+            return await permissionSnapshot(verifyAccess: true)
         case "sources" where args.count == 1:
             let content = try await shareableContent()
             return ["displays": content.displays.map { display in
@@ -96,7 +121,6 @@ struct CaptureEngine {
         catch let failure as HelperFailure { return ["ok": false, "error": ["code": failure.code, "message": failure.message]] }
         catch {
             let ns = error as NSError
-            if ns.domain == SCStreamErrorDomain && ns.code == -3801 { accessVerified = false }
             return ["ok": false, "error": ["code": ns.domain == SCStreamErrorDomain && ns.code == -3801 ? "PERMISSION_REQUIRED" : "NATIVE_ERROR",
                 "message": ns.domain == SCStreamErrorDomain && ns.code == -3801 ? "macOS denied Screen Recording access to Iris. Enable Iris in System Settings > Privacy & Security > Screen Recording, then quit and reopen Iris if macOS asks. \(ns.localizedDescription)" : ns.localizedDescription, "domain": ns.domain, "nativeCode": ns.code]]
         }
