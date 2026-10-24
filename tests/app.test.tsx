@@ -337,7 +337,7 @@ it('refreshes access after returning from System Settings and clears the stale p
     desktop.focus!({ payload: true });
   });
   await screen.findByText('Granted to Iris');
-  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
   expect(native).toHaveBeenCalledWith('diagnose', { verifyAccess: true });
   expect(native).not.toHaveBeenCalledWith('request_permission');
 });
